@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>我的专属 AI 聊天室</title>
+    <style>
+        body { background-color: #1e1e1e; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 50px; }
+        #chat-box { width: 80%; max-width: 600px; height: 400px; background: #2d2d2d; border-radius: 10px; padding: 20px; overflow-y: auto; margin-bottom: 20px; white-space: pre-wrap; line-height: 1.6;}
+        #input-area { display: flex; width: 80%; max-width: 600px; }
+        input { flex: 1; padding: 15px; border-radius: 5px 0 0 5px; border: none; outline: none; font-size: 16px;}
+        button { padding: 15px 30px; background: #10a37f; color: white; border: none; border-radius: 0 5px 5px 0; cursor: pointer; font-weight: bold; font-size: 16px;}
+        button:hover { background: #0d8a6a; }
+        .user-msg { color: #10a37f; font-weight: bold; margin-top: 10px;}
+        .ai-msg { color: #e0e0e0; margin-bottom: 15px;}
+    </style>
+</head>
+<body>
+
+    <h1>🤖 我的本地 AI 助手</h1>
+    <div id="chat-box">你好！我是一个跑在你电脑显卡上的千问大模型。请问有什么可以帮您？</div>
+    
+    <div id="input-area">
+        <input type="text" id="question" placeholder="输入你的问题...">
+        <button onclick="sendMessage()" id="send-btn">发送</button>
+    </div>
+
+    <script>
+        async function sendMessage() {
+            const input = document.getElementById('question');
+            const chatBox = document.getElementById('chat-box');
+            const btn = document.getElementById('send-btn');
+            const text = input.value.trim();
+            
+            if (!text) return;
+
+            // 显示用户的问题
+            chatBox.innerHTML += `\n\n<div class="user-msg">👤 你：\n${text}</div>`;
+            input.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+            
+            btn.innerText = '思考中...';
+            btn.disabled = true;
+
+            // 创建一个空的 AI 气泡，准备往里塞字
+            const aiDiv = document.createElement('div');
+            aiDiv.className = 'ai-msg';
+            aiDiv.innerHTML = '🤖 AI：\n';
+            chatBox.appendChild(aiDiv);
+
+            try {
+                const response = await fetch('http://localhost:8000/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+                
+                // 流式读取数据
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    aiDiv.innerText += chunk; // 一个字一个字往里塞
+                    chatBox.scrollTop = chatBox.scrollHeight; // 自动滚到底部
+                }
+            } catch (error) {
+                aiDiv.innerHTML += `\n<div style="color:red;">请求失败，请检查后端。</div>`;
+            } finally {
+                btn.innerText = '发送';
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('question').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
